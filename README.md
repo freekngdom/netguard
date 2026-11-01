@@ -23,6 +23,17 @@ Two pieces, one project:
 The guard owns the firewall. The UI is a view of it — plus, if you turn it on, an
 editor for the one file that defines the policy.
 
+## Where this lives
+
+| | |
+|---|---|
+| source | <https://git.3773512.xyz/TammyTran/netguard> — this repo; tags `v0.1.x` are releases |
+| UI image | `hippocampus/netguard` — Docker Hub, `linux/amd64` + `linux/arm64` |
+| guard image | `hippocampus/netguard-guard` — Docker Hub, same architectures |
+| version | `0.1.1` (both images share `status.json` schema v1 and the config grammar) |
+
+A GitHub mirror and a `ghcr.io` copy do not exist: the images are on Docker Hub only.
+
 ---
 
 ## Quick start
@@ -47,7 +58,7 @@ network `netguard.bus=true` instead).
 DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
 ```
 
-This pulls `hippocampus/netguard:0.1.0` and `hippocampus/netguard-guard:0.1.0`. To run
+This pulls `hippocampus/netguard:0.1.1` and `hippocampus/netguard-guard:0.1.1`. To run
 your own build instead, `make build` (same tags, so the compose file needs no edit) and
 uncomment the `build:` lines.
 
@@ -194,8 +205,8 @@ validated, backed up, and shown as a diff. POSTs require JSON and a same-origin
 
 ## Building and publishing
 
-Both images are published under **`hippocampus/`** on Docker Hub (the `netguard`
-namespace belongs to somebody else, and Docker Hub usernames are global):
+Both images are published under **`hippocampus/`** on Docker Hub — usernames there are
+global, and the plain `netguard` namespace is not ours:
 
 | image | what it is |
 |---|---|
@@ -205,7 +216,7 @@ namespace belongs to somebody else, and Docker Hub usernames are global):
 ```sh
 docker login                       # hippo campus account + an access token, not a password
 make build                         # or: make build OWNER=somebodyelse
-make push                          # tags and pushes :0.1.0 and :latest for both
+make push                          # tags and pushes :0.1.1 and :latest for both
 ```
 
 If `./guard` fails to build with `apk … temporary error (try again later)`, the build
@@ -217,12 +228,12 @@ The first `push` creates the repositories (Docker Hub defaults to public). Then 
 
 ```yaml
   netguard-guard:
-    image: hippocampus/netguard-guard:0.1.0
+    image: hippocampus/netguard-guard:0.1.1
   netguard:
-    image: hippocampus/netguard:0.1.0
+    image: hippocampus/netguard:0.1.1
 ```
 
-Multi-arch — **what `0.1.0` is published as**: an OCI index with `linux/amd64` and
+Multi-arch — **what `0.1.1` is published as**: an OCI index with `linux/amd64` and
 `linux/arm64`, so `docker pull` picks the right one (a Raspberry Pi works):
 
 ```sh
@@ -238,8 +249,31 @@ multi-arch on a `v*` tag.
 & Write*). With those set, pushing a `v*` tag builds and pushes both images; without
 them the workflow still builds but does not push.
 
-The guard and the UI share `status.json` **schema v1** and the config grammar, so keep
-them on the same minor version.
+### Upgrading
+
+The two images share `status.json` **schema v1** and the config grammar, so they are
+interchangeable within a minor version:
+
+- **UI alone** can be upgraded freely — an older guard simply publishes less (no
+  `observed` block, and the page says so instead of inventing numbers).
+- **Guard alone** can be upgraded freely — it writes the same schema; a `0.1.x` UI
+  reads it.
+- A **schema** bump (v2) would be a minor version for both, and an old UI would report
+  `unsupported status schema` rather than misread it.
+- Your config file is untouched by an upgrade: it is mounted, not owned by either image.
+
+### Publishing to Docker Hub
+
+The repositories were created by the first push, so their `description` and
+`full_description` are empty — Docker Hub does not read the README. To fill them, edit
+the repository on <https://hub.docker.com> (or `PATCH /v2/repositories/<user>/<repo>/`
+with an access token). A one-paragraph blurb that fits both:
+
+> East-west firewall policy for docker networks: one iptables chain per shared network
+> with a src/dst allowlist, cross-bridge isolation, an observe mode that logs what a
+> rule would cut, and a web UI that shows what is actually installed. Two images:
+> `netguard-guard` (host netns) and `netguard` (unprivileged UI). Source:
+> git.3773512.xyz/TammyTran/netguard
 
 ## Troubleshooting
 

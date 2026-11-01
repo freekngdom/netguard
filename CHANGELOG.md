@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 — 2026-11-01
+
+- **guard: cover `docker0` and `docker_gwbridge` in the cross-bridge chain.** The
+  bridge/subnet set was matched with `^br-`, so anything started with a bare
+  `docker run` — i.e. everything on docker's default bridge, a whole /16 — was
+  reachable from every other bridge while looking covered. Found by comparing against
+  the rule set the retired trafficjam left behind, which did cover it. Macvlan/ipvlan
+  networks still have no bridge interface and are still not covered (unchanged
+  behaviour, now stated explicitly).
+- tests: the guard fixture includes a `docker0` line and asserts the rule count, so
+  this cannot regress silently.
+
 ## 0.1.0 — 2026-11-01
 
 First release: the guard and the UI, packaged together.

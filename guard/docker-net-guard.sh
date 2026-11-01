@@ -367,8 +367,8 @@ build_policy() {
 #     `ip -o -4 addr show` yields (interface, subnet, gateway) for every bridge —
 #     no Docker API, no per-container bookkeeping, nothing to reconcile when a
 #     container is recreated;
-#   * the set is per NETWORK (2 rules per bridge, 83 for 41 bridges today) rather
-#     than per container (266 and growing), so the bug class that once grew trafficjam's
+#   * the set is per NETWORK (2 rules per network, 93 for 46 today) rather than
+#     per container (266 and growing), so the bug class that once grew trafficjam's
 #     chain to 961 rules cannot exist here;
 #   * a container that starts between polls is covered immediately, because its
 #     subnet already is.
@@ -393,12 +393,20 @@ XBRIDGE_TAG="$RULE_TAG/xbridge"
 XBRIDGE_STATE=/tmp/.docker-net-guard-xbridge.spec
 
 # Prints "<iface> <addr/len>" per docker bridge. `-o` puts the interface in
-# field 2 and the address in field 4; matching on `$2 ~ /^br-/` is what makes
-# this docker-only (a macvlan/ipvlan network has no br-* and is not covered,
-# exactly as trafficjam's per-container rules did not cover them either).
+# field 2 and the address in field 4.
+#
+# `docker0` (and swarm's `docker_gwbridge`) MUST be included: they are docker
+# bridges whose names do not start with `br-`, and they host anything started
+# with a bare `docker run` (throwaways, ad-hoc debugging). A `^br-` match alone
+# silently left that whole /16 reachable from every other bridge — found on
+# 2026-11-01 by comparing against the stale trafficjam rule set, which did cover
+# it (`-d 172.17.0.2/32 ! -i docker0`) because it enumerated containers instead.
+# A macvlan/ipvlan network has no bridge interface and is still not covered,
+# exactly as trafficjam's per-container rules did not cover them either.
 xbridge_specs() {
   [ -n "$IPBIN" ] || return 0
-  "$IPBIN" -o -4 addr show 2>/dev/null | awk '$2 ~ /^br-/ && $3 == "inet" {print $2, $4}'
+  "$IPBIN" -o -4 addr show 2>/dev/null | awk '
+    ($2 ~ /^br-/ || $2 == "docker0" || $2 == "docker_gwbridge") && $3 == "inet" {print $2, $4}'
 }
 
 build_xbridge() {
@@ -444,7 +452,9 @@ build_xbridge() {
     "$IPT" -t raw -I PREROUTING 1 -j "$XBRIDGE_CHAIN"
 
   printf '%s\n' "$specs" > "$XBRIDGE_STATE"
-  bridges=$(printf '%s\n' "$specs" | grep -c 'br-' || true)
+  # Count LINES, not `br-` matches: docker0/docker_gwbridge are bridges too and
+  # their names do not start with br- (see xbridge_specs).
+  bridges=$(printf '%s\n' "$specs" | grep -c . || true)
   log "cross-bridge: ENFORCE $bridges bridges -> $((bridges * 2 + 1)) rules"
 }
 
@@ -470,7 +480,7 @@ verify_xbridge() {
   fi
   # Structure check: losing the DROP (or a gateway RETURN) leaves the host open
   # while the chain still looks present, so count the tagged rules.
-  bridges=$(printf '%s\n' "$want" | grep -c 'br-' || true)
+  bridges=$(printf '%s\n' "$want" | grep -c . || true)
   got=$("$IPT" -t raw -S "$XBRIDGE_CHAIN" 2>/dev/null | grep -cF -- "$XBRIDGE_TAG" || true)
   if [ "$got" != "$((bridges * 2 + 1))" ]; then
     log "cross-bridge: rule count $got != $((bridges * 2 + 1)) — rebuilding"
@@ -679,7 +689,7 @@ write_status() {
     printf '\n  ],\n'
     _xb_hooked=false
     "$IPT" -t raw -C PREROUTING -j "$XBRIDGE_CHAIN" 2>/dev/null && _xb_hooked=true
-    _xb_bridges=$(xbridge_specs | grep -c 'br-' || true)
+    _xb_bridges=$(xbridge_specs | grep -c . || true)
     _xb_rules=$("$IPT" -t raw -S "$XBRIDGE_CHAIN" 2>/dev/null | grep -cF -- "$XBRIDGE_TAG" || true)
     printf '  "xbridge": {"hooked": %s, "bridges": %s, "rules": %s},\n' \
       "$_xb_hooked" "${_xb_bridges:-0}" "${_xb_rules:-0}"

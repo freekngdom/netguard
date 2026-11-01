@@ -106,7 +106,11 @@ def test_boot_programs_policies_and_publishes_status(tmp_path):
     assert all(p["state"] == "ok" and p["hooked"] for p in data["policies"])
     # the allowlist is resolved through the (fake) docker API
     assert [p["installed"] for p in data["policies"]] == ["10.10.10.5", "10.10.20.5:5432,10.10.20.6:6379"]
+    # two br-* bridges plus docker0: the fixture's docker0 is the regression case
+    # (a `^br-` match alone left that whole /16 reachable from every other bridge).
     assert data["xbridge"]["hooked"] is True
+    assert data["xbridge"]["bridges"] == 3
+    assert data["xbridge"]["rules"] == 2 * 3 + 1
     assert "DOCKERNET_edge" in data["docker_user"] and "DOCKERNET_backend" in data["docker_user"]
 
 

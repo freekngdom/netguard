@@ -36,5 +36,12 @@ jobs:
         run: python -m pytest -q
       - name: guard script syntax
         run: sh -n guard/docker-net-guard.sh
-      - name: compose file is valid YAML
-        run: python -c "import json,sys; [print(l.rstrip()) for l in open('docker-compose.yml')] and None" >/dev/null
+      - name: compose pins the current version
+        # Catches the drift that hit this project twice: a release bump that updates
+        # VERSION but leaves docker-compose.yml (or the README) pointing at the old tag.
+        run: |
+          v=$(python -c "import re;print(re.search(r'VERSION = \"([^\"]+)\"', open('ui/netguard.py').read()).group(1))")
+          echo "VERSION=$v"
+          grep -q "hippocampus/netguard:$v" docker-compose.yml
+          grep -q "hippocampus/netguard-guard:$v" docker-compose.yml
+          grep -q "hippocampus/netguard:$v" README.md

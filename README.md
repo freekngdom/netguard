@@ -1,5 +1,7 @@
 # netguard
 
+[![ci](https://git.3773512.xyz/TammyTran/netguard/actions/workflows/ci.yml/badge.svg)](https://git.3773512.xyz/TammyTran/netguard/actions)
+
 **East-west firewall policy for docker networks — enforced by iptables, explained by a web UI.**
 
 Docker's default model lets every container reach every other container on the host.

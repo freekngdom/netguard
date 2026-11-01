@@ -2,11 +2,20 @@ VERSION ?= 0.1.0
 REGISTRY ?= docker.io
 OWNER ?= hippocampus
 
+# Build network. Empty = docker's default (fine on most hosts). Set NETWORK=host when
+# the build container cannot resolve anything — the classic symptom is
+# `apk add --no-cache ...: temporary error (try again later)` in ./guard, which on this
+# host is caused by the resolver living inside a VPN namespace that a default-bridge
+# build container cannot reach. See README > Troubleshooting.
+NETWORK ?=
+NETWORK_FLAG := $(if $(strip $(NETWORK)),--network $(NETWORK),)
+
 .PHONY: help test build guard ui push smoke clean
 
 help:
 	@echo "make test    run the test suite (needs python3 + pytest)"
 	@echo "make build   build both images ($(OWNER)/netguard:$(VERSION), ...-guard)"
+	@echo "             add NETWORK=host if the build cannot resolve packages"
 	@echo "make push    tag and push both images to $(REGISTRY)/$(OWNER)"
 	@echo "make smoke   run the UI image against the fixture API"
 
@@ -16,10 +25,10 @@ test:
 build: guard ui
 
 guard:
-	docker build -t $(OWNER)/netguard-guard:$(VERSION) ./guard
+	docker build $(NETWORK_FLAG) -t $(OWNER)/netguard-guard:$(VERSION) ./guard
 
 ui:
-	docker build -t $(OWNER)/netguard:$(VERSION) ./ui
+	docker build $(NETWORK_FLAG) -t $(OWNER)/netguard:$(VERSION) ./ui
 
 push: build
 	docker tag $(OWNER)/netguard:$(VERSION) $(REGISTRY)/$(OWNER)/netguard:$(VERSION)

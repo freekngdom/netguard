@@ -204,6 +204,10 @@ make build                         # or: make build OWNER=somebodyelse
 make push                          # tags and pushes :0.1.0 and :latest for both
 ```
 
+If `./guard` fails to build with `apk … temporary error (try again later)`, the build
+container cannot resolve anything — see the Troubleshooting row above and use
+`make push NETWORK=host`.
+
 The first `push` creates the repositories (Docker Hub defaults to public). Then use
 `image:` instead of `build:` in `docker-compose.yml`:
 
@@ -239,6 +243,7 @@ them on the same minor version.
 | edits do not apply | the guard reloads within one poll; a syntax error is refused and the old policy kept — see the guard's logs |
 | `observed.ok: false` | the guard cannot read the kernel log (no `SYSLOG`, or no `dmesg` in the image) |
 | rules seem to do nothing | `br_netfilter` is not loaded, or `bridge-nf-call-iptables=0` |
+| `make build` fails in `./guard` with `apk add … temporary error (try again later)` and `no such package` | the **build container** has no DNS. It is not a problem with the packages: a host whose resolver lives inside a VPN namespace (WireGuard/NetBird/Tailscale) only answers from the host netns, and a default-bridge build container cannot reach it. Build with `make build NETWORK=host` (or `docker build --network host …`). Permanently: add `"dns": ["1.1.1.1"]` to `/etc/docker/daemon.json` and restart dockerd |
 | flows missing from the observe table | an *established* flow rides the conntrack RETURN and is never logged; the LOG rules have no `--limit`, so a missing allowlist entry wraps the buffer quickly |
 
 `docker exec netguard-guard iptables -S DOCKERNET_<bus>` shows one chain;

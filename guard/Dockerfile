@@ -12,6 +12,10 @@ FROM alpine:3.20
 #              bridge/subnet set, without asking the Docker API per container
 # docker-cli   alias resolution: every poll the guard asks the Engine API which
 #              containers carry which alias on each guarded network (DOCKER_HOST)
+# If this line fails with "temporary error (try again later)" + "no such package",
+# the BUILD container has no DNS (common when the host resolver is a VPN-only stub that
+# only answers from the host netns). Build with `make build NETWORK=host`, or set
+# `"dns": ["1.1.1.1"]` in the docker daemon config. See README > Troubleshooting.
 RUN apk add --no-cache iptables iproute2 docker-cli
 
 COPY docker-net-guard.sh /guard.sh

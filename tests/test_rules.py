@@ -55,6 +55,57 @@ def test_members_carry_the_name_that_will_be_written(ng, fresh_conf):
     assert postgres["write_as"] in ("db", "postgres")
 
 
+def test_each_bus_records_where_it_came_from(ng, fresh_conf):
+    """The three sources are a UNION: policy (enforced), bus definitions (listed),
+    docker label (listed). Nothing synchronises them — the guard only reads the
+    config, so `buses.txt` and the label never change what is enforced."""
+    buses = {b["name"]: b for b in model(ng)["buses"]}
+    assert buses["edge"]["sources"] == ["policy", "file"]      # policy + buses.txt
+    assert buses["backend"]["sources"] == ["policy", "file"]
+    assert buses["workers"]["sources"] == ["file", "label"]    # definition + label
+
+
+def test_a_bus_only_in_the_definitions_is_listed_and_open(ng, fresh_conf):
+    workers = bus(ng, "workers")
+    assert workers["policy"] is None
+    assert workers["member_count"] == 2                        # discovery is live
+    assert workers["warnings"][0]["kind"] == "open"
+
+
+def test_a_stale_definition_is_flagged_but_harmless(ng, fresh_conf):
+    path = fresh_conf.parent / "buses.txt"
+    original = path.read_text(encoding="utf-8")
+    try:
+        path.write_text(original + "\nghost 10.99.0.0/24\n", encoding="utf-8")
+        ghost = next(b for b in model(ng)["buses"] if b["name"] == "ghost")
+        assert ghost["exists"] is False and ghost["member_count"] == 0
+        assert [w["kind"] for w in ghost["warnings"]] == ["open", "stale-entry"]
+    finally:
+        path.write_text(original, encoding="utf-8")
+
+
+def test_a_policy_for_a_missing_network_is_an_error_not_a_stale_entry(ng, fresh_conf):
+    # A policy naming a network docker does not have matches nothing at all: that is
+    # worse than a stale listing, so it is not reported as one.
+    path = fresh_conf.parent / "buses.txt"
+    original = path.read_text(encoding="utf-8")
+    text = fresh_conf.read_text(encoding="utf-8")
+    try:
+        path.write_text(original + "\nghost 10.99.0.0/24\n", encoding="utf-8")
+        fresh_conf.write_text(
+            text.replace(
+                'edge     src 10.10.10.0/24 traefik',
+                'edge     src 10.10.10.0/24 traefik\nghost    dst 10.99.0.0/24 traefik',
+            ),
+            encoding="utf-8",
+        )
+        ghost = next(b for b in model(ng)["buses"] if b["name"] == "ghost")
+        kinds = [w["kind"] for w in ghost["warnings"]]
+        assert "missing-net" in kinds and "stale-entry" not in kinds
+    finally:
+        path.write_text(original, encoding="utf-8")
+
+
 # ─── validation ──────────────────────────────────────────────────────────────
 def test_validate_accepts_a_fan_in_rule_with_ports(ng, fresh_conf):
     entries, warnings = ng.validate_rule(

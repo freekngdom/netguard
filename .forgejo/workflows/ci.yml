@@ -1,0 +1,33 @@
+# Forgejo Actions variant of .github/workflows/ci.yml — tests only.
+#
+# Image builds are NOT done here: job containers on this runner have no docker
+# daemon, so publishing is `make push` from a machine that does (or the GitHub
+# workflow, on a mirror, with DOCKERHUB_USERNAME/DOCKERHUB_TOKEN set).
+name: ci
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: python:3.13-alpine
+    steps:
+      - name: checkout
+        # If the forgejo host sits behind an authenticating proxy, clone through the
+        # internal URL instead so the token Basic-auth does not 401:
+        #   with: { github-server-url: http://server:3000 }
+        uses: https://code.forgejo.org/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: install
+        run: pip install -q -r requirements-dev.txt
+      - name: tests
+        run: python -m pytest -q
+      - name: shell syntax
+        run: sh -n guard/docker-net-guard.sh
+      - name: compose file parses
+        run: python -c "import yaml,sys; yaml.safe_load(open('docker-compose.yml'))" 2>/dev/null || echo "pyyaml absent, skipping"

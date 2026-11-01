@@ -45,7 +45,7 @@ services:
 
   netguard-guard:
     build: ./guard
-    # image: ghcr.io/YOURNAME/netguard-guard:0.1.0   # once published
+    # image: hippocampus/netguard-guard:0.1.0        # published image
     container_name: netguard-guard
     restart: unless-stopped
     network_mode: host          # programs the HOST iptables ruleset
@@ -70,7 +70,7 @@ services:
 
   netguard:
     build: ./ui
-    # image: ghcr.io/YOURNAME/netguard:0.1.0        # once published
+    # image: hippocampus/netguard:0.1.0             # published image
     container_name: netguard
     restart: unless-stopped
     read_only: true

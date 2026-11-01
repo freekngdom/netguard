@@ -1,6 +1,6 @@
 VERSION ?= 0.1.0
 REGISTRY ?= docker.io
-OWNER ?= netguard
+OWNER ?= hippocampus
 
 .PHONY: help test build guard ui push smoke clean
 

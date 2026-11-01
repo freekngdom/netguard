@@ -302,12 +302,15 @@ def read_shared_defs() -> dict:
     """
     out: dict[str, dict] = {}
 
-    def add(name: str, subnet: str, ip_range: str, internal: bool) -> None:
+    def add(name: str, subnet: str, ip_range: str, internal: bool, source: str) -> None:
         out[name] = {
             "name": name,
             "subnet": subnet,
             "ip_range": ip_range,
             "internal": internal,
+            # every definition source that names this network, so the page can say
+            # why a bus is listed. A set: a network can be in the file AND labelled.
+            "sources": {source},
         }
 
     if BUSES_FILE:
@@ -321,7 +324,7 @@ def read_shared_defs() -> dict:
                     if len(parts) < 2:
                         log("%s: ignoring %r (want <name> <subnet> [ip-range])" % (BUSES_FILE, line))
                         continue
-                    add(parts[0], parts[1], parts[2] if len(parts) > 2 else "", "internal" in parts[3:])
+                    add(parts[0], parts[1], parts[2] if len(parts) > 2 else "", "internal" in parts[3:], "file")
         except FileNotFoundError:
             pass
         except OSError as exc:
@@ -333,7 +336,7 @@ def read_shared_defs() -> dict:
                 for line in fh:
                     m = re.match(r"^\s*create\s+(\S+)\s+(\S+)\s+(\S+)(.*)$", line)
                     if m:
-                        add(m.group(1), m.group(2), m.group(3), "--internal" in m.group(4))
+                        add(m.group(1), m.group(2), m.group(3), "--internal" in m.group(4), "file")
         except OSError as exc:
             log("cannot read %s: %s" % (SHARED_NETS_FILE, exc))
     return out
@@ -500,15 +503,17 @@ def _build_model(degraded_error: str | None) -> dict:
             labels = n.get("Labels") or {}
             if str(labels.get(BUS_LABEL, "")).lower() in ("true", "1", "yes"):
                 ipam = ((n.get("IPAM") or {}).get("Config") or [{}])[0]
-                shared.setdefault(
+                entry = shared.setdefault(
                     nname,
                     {
                         "name": nname,
                         "subnet": ipam.get("Subnet", ""),
                         "ip_range": ipam.get("IPRange", ""),
                         "internal": bool(n.get("Internal")),
+                        "sources": set(),
                     },
                 )
+                entry["sources"].add("label")
 
     policies = {p["name"]: p for p in conf["policies"]}
     order = list(shared.keys())
@@ -721,6 +726,35 @@ def _build_model(degraded_error: str | None) -> dict:
                 }
             )
 
+        # Where this bus came from. The three sources are a union, not a sync: the
+        # guard only ever reads its config, while buses.txt and the label merely tell
+        # this page that the network exists (so an unguarded one is visible at all).
+        definition_sources = (shared.get(name) or {}).get("sources") or set()
+        sources = (["policy"] if policy else []) + [
+            s for s in ("file", "label") if s in definition_sources
+        ]
+
+        if not docker_error:
+            if policy and not net:
+                warn.append(
+                    {
+                        "tone": "bad",
+                        "kind": "missing-net",
+                        "text": "the policy names network %s, but docker has no network by "
+                        "that name — the chain matches nothing. Fix the name, or remove "
+                        "the policy." % name,
+                    }
+                )
+            elif "file" in definition_sources and not net:
+                warn.append(
+                    {
+                        "tone": "warn",
+                        "kind": "stale-entry",
+                        "text": "%s is listed in the bus definitions, but docker has no "
+                        "network by that name — a stale entry, harmless but noise." % name,
+                    }
+                )
+
         buses.append(
             {
                 "name": name,
@@ -731,6 +765,7 @@ def _build_model(degraded_error: str | None) -> dict:
                 "members": bus_members,
                 "member_count": len(bus_members),
                 "membership": "unknown" if docker_error else "ok",
+                "sources": sources,
                 "policy": policy,
                 "mode": conf["modes"].get(name, "enforce") if policy else None,
                 "resolved": resolved,
@@ -1573,9 +1608,10 @@ def render_detail(model: dict, bus: dict, saved: bool = False) -> str:
         model,
         {
             "title": bus["name"],
-            "sub": '<a href="/">&larr; all buses</a> · %s%s'
+            "sub": '<a href="/">&larr; all buses</a> · %s%s · listed by %s'
             % (esc(bus["subnet"] or "not present"),
-               " · internal" if bus["internal"] else ""),
+               " · internal" if bus["internal"] else "",
+               esc(" + ".join(bus.get("sources") or ["—"]))),
         },
     )
 

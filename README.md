@@ -78,6 +78,31 @@ policy can express. There is no way to say “A may reach B and nothing else” 
 with more members; give that pair its own network instead (one caller + one server, a
 `--internal` network, an alias on each side).
 
+### where a bus comes from — three sources, one union
+
+A network is listed if **any** of these names it, and the three do *not* synchronise:
+
+| source | what it does |
+|---|---|
+| a policy in `docker-net-guard.conf` | **enforces** it — this is the only input the guard reads |
+| `config/buses.txt` (`<name> <subnet> [ip-range]`) | lists it, so an unguarded network is visible. Nothing is enforced |
+| a `netguard.bus=true` label on the docker network | same as the file, resolved from the live network list |
+
+The page takes the union at read time and says which sources each bus came from. For
+the *displayed* subnet the order is: policy → live docker network → definition file.
+
+Consequences worth knowing:
+
+- **deleting a policy does not unlist the bus** — it becomes **open**, which is exactly
+  what you want to see afterwards;
+- **removing a definition does not unguard anything** (it never guarded anything) — the
+  bus simply disappears from the list unless a policy covers it;
+- the guard never sees `buses.txt` or a label: a bus listed that way is enforced by
+  nothing;
+- a definition naming a network docker does not have is flagged as a **stale entry**;
+  a *policy* naming one is flagged as an error, because that chain matches nothing at
+  all.
+
 ### mode
 
 | mode | behaviour |
@@ -163,31 +188,46 @@ validated, backed up, and shown as a diff. POSTs require JSON and a same-origin
 
 ---
 
-## Building and publishing your own images
+## Building and publishing
+
+Both images are published under **`hippocampus/`** on Docker Hub (the `netguard`
+namespace belongs to somebody else, and Docker Hub usernames are global):
+
+| image | what it is |
+|---|---|
+| `hippocampus/netguard` | the UI, unprivileged, port 8080 |
+| `hippocampus/netguard-guard` | the guard, host netns, NET_ADMIN/NET_RAW/SYSLOG |
 
 ```sh
-make build                       # netguard:0.1.0 and netguard-guard:0.1.0
-make test                        # pytest, no docker needed except for the build test
-docker tag netguard:0.1.0  YOURNAME/netguard:0.1.0
-docker tag netguard-guard:0.1.0  YOURNAME/netguard-guard:0.1.0
-docker push YOURNAME/netguard:0.1.0
-docker push YOURNAME/netguard-guard:0.1.0
+docker login                       # hippo campus account + an access token, not a password
+make build                         # or: make build OWNER=somebodyelse
+make push                          # tags and pushes :0.1.0 and :latest for both
 ```
 
-Multi-arch:
+The first `push` creates the repositories (Docker Hub defaults to public). Then use
+`image:` instead of `build:` in `docker-compose.yml`:
+
+```yaml
+  netguard-guard:
+    image: hippocampus/netguard-guard:0.1.0
+  netguard:
+    image: hippocampus/netguard:0.1.0
+```
+
+Multi-arch (arm64 + amd64), which is what CI does on a tag:
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t YOURNAME/netguard:0.1.0 --push ./ui
+  -t hippocampus/netguard:0.1.0 --push ./ui
 ```
 
-Then use `image:` instead of `build:` in `docker-compose.yml`. CI does the same on a
-tag (`v*`) when `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` are set.
+**CI publishing** needs two repository secrets: `DOCKERHUB_USERNAME=hippocampus` and
+`DOCKERHUB_TOKEN` (Docker Hub → Account settings → Security → New access token, *Read
+& Write*). With those set, pushing a `v*` tag builds and pushes both images; without
+them the workflow still builds but does not push.
 
 The guard and the UI share `status.json` **schema v1** and the config grammar, so keep
 them on the same minor version.
-
----
 
 ## Troubleshooting
 

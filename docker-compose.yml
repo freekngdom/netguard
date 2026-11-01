@@ -46,7 +46,7 @@ services:
   netguard-guard:
     # Published image. `make build` produces the same tag locally, and compose prefers
     # a local image over pulling — so contributors build once and this line is unchanged.
-    image: hippocampus/netguard-guard:0.1.0
+    image: hippocampus/netguard-guard:0.1.1
     # build: ./guard                                 # development
     container_name: netguard-guard
     restart: unless-stopped
@@ -71,7 +71,7 @@ services:
       DOCKER_HOST: tcp://172.30.99.2:2375
 
   netguard:
-    image: hippocampus/netguard:0.1.0
+    image: hippocampus/netguard:0.1.1
     # build: ./ui                                    # development
     container_name: netguard
     restart: unless-stopped

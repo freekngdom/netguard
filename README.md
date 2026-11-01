@@ -222,12 +222,16 @@ The first `push` creates the repositories (Docker Hub defaults to public). Then 
     image: hippocampus/netguard:0.1.0
 ```
 
-Multi-arch (arm64 + amd64), which is what CI does on a tag:
+Multi-arch — **what `0.1.0` is published as**: an OCI index with `linux/amd64` and
+`linux/arm64`, so `docker pull` picks the right one (a Raspberry Pi works):
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -t hippocampus/netguard:0.1.0 --push ./ui
+docker run --privileged --rm tonistiigi/binfmt --install arm64   # once, for emulation
+make push-multiarch
 ```
+
+`make push` stays single-arch for the arch you are on; the CI workflow publishes
+multi-arch on a `v*` tag.
 
 **CI publishing** needs two repository secrets: `DOCKERHUB_USERNAME=hippocampus` and
 `DOCKERHUB_TOKEN` (Docker Hub → Account settings → Security → New access token, *Read

@@ -17,6 +17,7 @@ help:
 	@echo "make build   build both images ($(OWNER)/netguard:$(VERSION), ...-guard)"
 	@echo "             add NETWORK=host if the build cannot resolve packages"
 	@echo "make push    tag and push both images to $(REGISTRY)/$(OWNER)"
+	@echo "make push-multiarch  same, but amd64+arm64 (needs buildx + qemu binfmt)"
 	@echo "make smoke   run the UI image against the fixture API"
 
 test:
@@ -39,6 +40,15 @@ push: build
 	docker push $(REGISTRY)/$(OWNER)/netguard:latest
 	docker push $(REGISTRY)/$(OWNER)/netguard-guard:$(VERSION)
 	docker push $(REGISTRY)/$(OWNER)/netguard-guard:latest
+
+# Multi-arch. Needs buildx and arm64 emulation on the building host:
+#   docker run --privileged --rm tonistiigi/binfmt --install arm64
+# The registry ends up with an OCI index, so `docker pull` resolves per platform.
+push-multiarch:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	  -t $(REGISTRY)/$(OWNER)/netguard:$(VERSION) -t $(REGISTRY)/$(OWNER)/netguard:latest --push ./ui
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	  -t $(REGISTRY)/$(OWNER)/netguard-guard:$(VERSION) -t $(REGISTRY)/$(OWNER)/netguard-guard:latest --push ./guard
 
 smoke:
 	docker run -d --rm --name netguard-smoke -p 8080:8080 \

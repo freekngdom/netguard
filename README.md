@@ -47,6 +47,10 @@ network `netguard.bus=true` instead).
 DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
 ```
 
+This pulls `hippocampus/netguard:0.1.0` and `hippocampus/netguard-guard:0.1.0`. To run
+your own build instead, `make build` (same tags, so the compose file needs no edit) and
+uncomment the `build:` lines.
+
 Open <http://localhost:8080>. The dashboard lists every bus with its posture — enforce,
 observe, or **open** — the members, and the chain as installed right now.
 

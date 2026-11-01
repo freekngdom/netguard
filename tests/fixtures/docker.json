@@ -1,0 +1,99 @@
+{
+  "networks": [
+    {
+      "Name": "edge",
+      "Id": "net-edge",
+      "Driver": "bridge",
+      "Internal": false,
+      "Labels": {},
+      "IPAM": {"Config": [{"Subnet": "10.10.10.0/24", "IPRange": "10.10.10.0/25", "Gateway": "10.10.10.1"}]}
+    },
+    {
+      "Name": "backend",
+      "Id": "net-backend",
+      "Driver": "bridge",
+      "Internal": false,
+      "Labels": {},
+      "IPAM": {"Config": [{"Subnet": "10.10.20.0/24", "IPRange": "10.10.20.0/25", "Gateway": "10.10.20.1"}]}
+    },
+    {
+      "Name": "workers",
+      "Id": "net-workers",
+      "Driver": "bridge",
+      "Internal": false,
+      "Labels": {"netguard.bus": "true"},
+      "IPAM": {"Config": [{"Subnet": "10.20.0.0/24", "IPRange": "10.20.0.0/25", "Gateway": "10.20.0.1"}]}
+    },
+    {
+      "Name": "project_default",
+      "Id": "net-project",
+      "Driver": "bridge",
+      "Internal": false,
+      "Labels": {},
+      "IPAM": {"Config": [{"Subnet": "172.31.0.0/24", "IPRange": "172.31.0.0/25", "Gateway": "172.31.0.1"}]}
+    }
+  ],
+  "containers": [
+    {"Id": "c-traefik", "Names": ["/traefik"], "Image": "traefik:v3", "State": "running",
+     "NetworkSettings": {"Networks": {"edge": {"IPAddress": "10.10.10.5"}}}},
+    {"Id": "c-web", "Names": ["/web"], "Image": "nginx:alpine", "State": "running",
+     "NetworkSettings": {"Networks": {"edge": {"IPAddress": "10.10.10.10"}, "backend": {"IPAddress": "10.10.20.10"}}}},
+    {"Id": "c-postgres", "Names": ["/postgres"], "Image": "postgres:17-alpine", "State": "running",
+     "NetworkSettings": {"Networks": {"backend": {"IPAddress": "10.10.20.5"}}}},
+    {"Id": "c-redis", "Names": ["/redis"], "Image": "redis:7-alpine", "State": "running",
+     "NetworkSettings": {"Networks": {"backend": {"IPAddress": "10.10.20.6"}}}},
+    {"Id": "c-worker", "Names": ["/worker"], "Image": "alpine:3.20", "State": "running",
+     "NetworkSettings": {"Networks": {"workers": {"IPAddress": "10.20.0.3"}}}},
+    {"Id": "c-rogue", "Names": ["/rogue"], "Image": "alpine:3.20", "State": "running",
+     "NetworkSettings": {"Networks": {"workers": {"IPAddress": "10.20.0.4"}}}}
+  ],
+  "inspects": {
+    "traefik": {"Id": "c-traefik", "Name": "/traefik", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {"edge": {"IPAddress": "10.10.10.5", "Aliases": ["traefik"]}}}},
+    "web": {"Id": "c-web", "Name": "/web", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {
+        "edge": {"IPAddress": "10.10.10.10", "Aliases": ["web"]},
+        "backend": {"IPAddress": "10.10.20.10", "Aliases": ["web", "web-backend"]}}}},
+    "postgres": {"Id": "c-postgres", "Name": "/postgres", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {"backend": {"IPAddress": "10.10.20.5", "Aliases": ["postgres", "db"]}}}},
+    "redis": {"Id": "c-redis", "Name": "/redis", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {"backend": {"IPAddress": "10.10.20.6", "Aliases": ["redis", "cache"]}}}},
+    "worker": {"Id": "c-worker", "Name": "/worker", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {"workers": {"IPAddress": "10.20.0.3", "Aliases": ["worker"]}}}},
+    "rogue": {"Id": "c-rogue", "Name": "/rogue", "RestartCount": 0,
+      "State": {"Status": "running", "Running": true, "StartedAt": "2026-01-01T00:00:00Z"},
+      "NetworkSettings": {"Networks": {"workers": {"IPAddress": "10.20.0.4", "Aliases": ["rogue"]}}}}
+  },
+  "status": {
+    "schema": 1,
+    "now": 1767225600,
+    "guard_started": 1767222000,
+    "poll_interval": 60,
+    "generation": 0,
+    "config": {"path": "/guard/docker-net-guard.conf", "md5": "REPLACED_AT_RUNTIME", "reload_error": ""},
+    "policies": [
+      {"name": "edge", "dir": "src", "subnet": "10.10.10.0/24", "allow": "traefik",
+       "mode": "enforce", "installed": "10.10.10.5", "state": "ok", "hooked": true, "rules": 3},
+      {"name": "backend", "dir": "dst", "subnet": "10.10.20.0/24", "allow": "postgres:5432,redis:6379",
+       "mode": "observe", "installed": "10.10.20.5:5432,10.10.20.6:6379", "state": "ok", "hooked": true, "rules": 4}
+    ],
+    "xbridge": {"hooked": true, "bridges": 4, "rules": 9},
+    "docker_user": ["DOCKERNET_backend", "DOCKERNET_edge", "CROWDSEC_CHAIN"],
+    "observed": {
+      "ok": true,
+      "error": "",
+      "boot_at": 1767222000,
+      "flows": [
+        {"bus": "backend", "src": "10.10.20.10", "dst": "10.10.20.6", "proto": "TCP",
+         "dport": "5432", "count": 12, "first": 120.0, "last": 240.0},
+        {"bus": "backend", "src": "10.10.20.10", "dst": "10.10.20.5", "proto": "TCP",
+         "dport": "6379", "count": 3, "first": 130.0, "last": 200.0}
+      ]
+    }
+  }
+}

@@ -1,0 +1,104 @@
+# netguard — east-west firewall policy for docker networks, with a UI.
+#
+#   docker compose up -d          # then browse to http://<host>:8080
+#   docker compose logs -f netguard-guard
+#
+# Two containers, because they need opposite privileges:
+#   netguard-guard  host netns, NET_ADMIN + NET_RAW + SYSLOG, read-only rootfs
+#   netguard        unprivileged (uid 10001), publishes 8080, only ever reads
+#
+# HOST PREREQUISITE, or the rules are silently inert: bridged traffic must be handed
+# to iptables. On most distributions this is one module plus one sysctl:
+#   modprobe br_netfilter
+#   echo br_netfilter > /etc/modules-load.d/br_netfilter.conf
+#   echo 'net.bridge.bridge-nf-call-iptables=1' > /etc/sysctl.d/99-br-netfilter.conf
+#   sysctl --system
+
+services:
+  # Read-only Engine API. Neither container may write to docker, and neither mounts
+  # the socket directly.
+  docker-socket-proxy:
+    image: ghcr.io/wollomatic/socket-proxy:1
+    container_name: netguard-socket-proxy
+    restart: unless-stopped
+    read_only: true
+    # Reads the socket through its group. Set DOCKER_GID if yours is not 999:
+    #   DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
+    user: "65534:${DOCKER_GID:-999}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      netguard_api:
+        # Pinned because the guard runs in the host netns, where docker's embedded
+        # DNS does not exist — it can only reach this proxy by address.
+        ipv4_address: 172.30.99.2
+    environment:
+      SP_LISTENIP: 0.0.0.0
+      # netguard: the UI container, by name. 172.30.99.1: the bridge gateway, which
+      # is the source address the host-netns guard presents. Nothing else may read.
+      SP_ALLOWFROM: netguard,172.30.99.1
+      SP_ALLOW_HEAD: ^(/v[\d\.]+)?/(_ping|version)$
+      SP_ALLOW_GET: ^(/v[\d\.]+)?/(_ping|events|version|info|containers|networks).*$
+      # The proxy exits if it goes this long without a request. Traefik-style event
+      # streams keep it alive in big setups; here it is simply disabled.
+      SP_WATCHDOGINTERVAL: 0
+
+  netguard-guard:
+    build: ./guard
+    # image: ghcr.io/YOURNAME/netguard-guard:0.1.0   # once published
+    container_name: netguard-guard
+    restart: unless-stopped
+    network_mode: host          # programs the HOST iptables ruleset
+    read_only: true
+    cap_add:
+      - NET_ADMIN               # write the ruleset
+      - NET_RAW                 # ipset/netlink probes iptables-save performs
+      - SYSLOG                  # read would-be-dropped flows from the kernel log
+    security_opt:
+      - no-new-privileges:true
+    # The kernel module tree is needed for reliable boot-time detection.
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - ./config:/guard:ro
+      - ./state:/state
+    tmpfs:
+      - /tmp:size=4M,mode=1777
+    environment:
+      GUARD_CONFIG: /guard/docker-net-guard.conf
+      GUARD_STATE_DIR: /state
+      DOCKER_HOST: tcp://172.30.99.2:2375
+
+  netguard:
+    build: ./ui
+    # image: ghcr.io/YOURNAME/netguard:0.1.0        # once published
+    container_name: netguard
+    restart: unless-stopped
+    read_only: true
+    # Nothing here is privileged: it reads the config, reads status.json, reads the
+    # Engine API, and (when NETGUARD_WRITE=1) writes the one config file.
+    user: "10001:10001"
+    ports:
+      - "${NETGUARD_PORT:-8080}:8080"
+    volumes:
+      - ./config:/guard           # rw: the editor rewrites docker-net-guard.conf
+      - ./state:/state:ro         # what the guard publishes
+      - ./data:/data              # pre-write backups + last-edit record
+    tmpfs:
+      - /tmp:size=8M,mode=1777
+    environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      GUARD_CONF: /guard/docker-net-guard.conf
+      GUARD_STATE_DIR: /state
+      BUSES_FILE: /guard/buses.txt
+      BACKUP_DIR: /data/backups
+      GUARD_CONTAINER: netguard-guard
+      # 1 = the page may create/edit/delete policies. 0 = strictly read-only.
+      NETGUARD_WRITE: "${NETGUARD_WRITE:-0}"
+    networks:
+      - netguard_api
+
+networks:
+  netguard_api:
+    ipam:
+      config:
+        - subnet: 172.30.99.0/24

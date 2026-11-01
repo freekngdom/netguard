@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+
+# runtime state: the guard publishes status.json here, the UI keeps backups in data/
+state/*
+!state/.gitkeep
+data/*
+!data/.gitkeep

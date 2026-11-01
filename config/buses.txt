@@ -1,0 +1,16 @@
+# Networks netguard should list even when no policy covers them.
+#
+#     <name> <subnet> [<ip-range>] [internal]
+#
+# The ip-range and `internal` flag are optional; they are filled in from the live
+# network when the name exists in docker. Networks can also opt in with a label
+# (`docker network create --label netguard.bus=true <name>`) instead of appearing
+# here — which is the better option when the network is created by compose.
+#
+# Only networks that actually carry container-to-container traffic need an entry.
+# A stack-local network (compose creates one per project) is already isolated by the
+# cross-bridge chain and is not a "bus" in this sense.
+
+edge     10.10.10.0/24   10.10.10.0/25
+backend  10.10.20.0/24   10.10.20.0/25
+workers  10.20.0.0/24    10.20.0.0/25

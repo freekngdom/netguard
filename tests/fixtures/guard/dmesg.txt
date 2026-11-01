@@ -1,0 +1,4 @@
+[ 100.000001] docker-net-guard/backend: IN=br-b OUT=br-b MAC=aa SRC=10.10.20.10 DST=10.10.20.5 LEN=60 PROTO=TCP SPT=40000 DPT=5432 WINDOW=1 SYN
+[ 100.500002] docker-net-guard/backend: IN=br-b OUT=br-b MAC=aa SRC=10.10.20.10 DST=10.10.20.5 LEN=60 PROTO=TCP SPT=40000 DPT=5432 WINDOW=1 SYN
+[ 101.000003] docker-net-guard/edge: IN=br-a OUT=br-a MAC=bb SRC=10.10.10.10 DST=10.10.10.9 LEN=60 PROTO=TCP SPT=40001 DPT=8080 WINDOW=1 SYN
+[ 999.999999] unrelated kernel message that must be ignored

@@ -49,9 +49,10 @@ jobs:
       contents: read
       packages: write          # ghcr.io
     env:
-      # Job-level so `if: env.DOCKERHUB_TOKEN != ''` can see it; a step's own `env:`
-      # block is applied after its `if:` is evaluated.
+      # Job-level so the step `if:`s can see them; a step's own `env:` block is applied
+      # after its `if:` has been evaluated.
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v4
       - id: tag
@@ -87,14 +88,14 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/netguard-guard:latest
 
       - name: login to docker hub
-        if: env.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: push UI to docker hub
-        if: env.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_USERNAME != ''
         uses: docker/build-push-action@v6
         with:
           context: ./ui
@@ -105,7 +106,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/netguard:latest
 
       - name: push guard to docker hub
-        if: env.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_USERNAME != ''
         uses: docker/build-push-action@v6
         with:
           context: ./guard

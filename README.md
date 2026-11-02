@@ -30,7 +30,7 @@ editor for the one file that defines the policy.
 | | |
 |---|---|
 | source | <https://git.3773512.xyz/TammyTran/netguard> — this repo; tags `v0.1.x` are releases |
-| mirror | `github.com/freekngdom/netguard` — pushed from here on every commit (private, like the other mirrors) |
+| mirror | <https://github.com/freekngdom/netguard> — pushed from here on every commit |
 | UI image | `hippocampus/netguard` (Docker Hub) and `ghcr.io/freekngdom/netguard` |
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
 | version | `0.1.2` (both images share `status.json` schema v1 and the config grammar) |
@@ -38,8 +38,9 @@ editor for the one file that defines the policy.
 All four images are multi-arch (`linux/amd64` + `linux/arm64`). GHCR is published by
 `.github/workflows/ci.yml` on a `v*` tag using `GITHUB_TOKEN`; Docker Hub by the same
 workflow when `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` are set, or by `make push`.
-**GHCR packages start private even from a public repo** — flip each to public in the
-package settings if that is what you want.
+**GHCR packages start private even from a public repo**, so `docker pull
+ghcr.io/freekngdom/netguard` needs a login until each package is switched to public in
+its package settings.
 
 ---
 

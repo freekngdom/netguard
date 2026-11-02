@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.2 — 2026-11-02
+
+Release plumbing, no behaviour change: the images are the same code as 0.1.1.
+
+- **published to GHCR as well as Docker Hub** — `.github/workflows/ci.yml` pushes
+  `ghcr.io/freekngdom/netguard{,-guard}` on a `v*` tag using `GITHUB_TOKEN` (no
+  secret), and Docker Hub when `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` are set.
+- the previous Docker Hub gate was `if: secrets.…` at **job** level, which GitHub
+  Actions cannot evaluate — it would never have published. Now job-level `env` with a
+  step-level `if:`.
+- Forgejo mirror to `github.com/freekngdom/netguard` (push mirror, sync on commit).
+- CI: a Forgejo run now fails if `VERSION`, `docker-compose.yml` and the README
+  disagree about the tag (that drifted three times while publishing).
+
 ## 0.1.1 — 2026-11-01
 
 - **guard: cover `docker0` and `docker_gwbridge` in the cross-bridge chain.** The

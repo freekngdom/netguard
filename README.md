@@ -30,10 +30,10 @@ editor for the one file that defines the policy.
 | | |
 |---|---|
 | source | <https://git.3773512.xyz/TammyTran/netguard> — this repo; tags `v0.1.x` are releases |
-| mirror | `github.com/freekngdom/netguard` — push-mirror target, mirrored on every commit once its deploy key is registered there (see [Mirroring](#mirroring)) |
+| mirror | `github.com/freekngdom/netguard` — pushed from here on every commit (private, like the other mirrors) |
 | UI image | `hippocampus/netguard` (Docker Hub) and `ghcr.io/freekngdom/netguard` |
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
-| version | `0.1.1` (both images share `status.json` schema v1 and the config grammar) |
+| version | `0.1.2` (both images share `status.json` schema v1 and the config grammar) |
 
 All four images are multi-arch (`linux/amd64` + `linux/arm64`). GHCR is published by
 `.github/workflows/ci.yml` on a `v*` tag using `GITHUB_TOKEN`; Docker Hub by the same
@@ -65,7 +65,7 @@ network `netguard.bus=true` instead).
 DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
 ```
 
-This pulls `hippocampus/netguard:0.1.1` and `hippocampus/netguard-guard:0.1.1`. To run
+This pulls `hippocampus/netguard:0.1.2` and `hippocampus/netguard-guard:0.1.2`. To run
 your own build instead, `make build` (same tags, so the compose file needs no edit) and
 uncomment the `build:` lines.
 
@@ -223,7 +223,7 @@ global, and the plain `netguard` namespace is not ours:
 ```sh
 docker login                       # hippo campus account + an access token, not a password
 make build                         # or: make build OWNER=somebodyelse
-make push                          # tags and pushes :0.1.1 and :latest for both
+make push                          # tags and pushes :0.1.2 and :latest for both
 ```
 
 If `./guard` fails to build with `apk … temporary error (try again later)`, the build
@@ -235,12 +235,12 @@ The first `push` creates the repositories (Docker Hub defaults to public). Then 
 
 ```yaml
   netguard-guard:
-    image: hippocampus/netguard-guard:0.1.1
+    image: hippocampus/netguard-guard:0.1.2
   netguard:
-    image: hippocampus/netguard:0.1.1
+    image: hippocampus/netguard:0.1.2
 ```
 
-Multi-arch — **what `0.1.1` is published as**: an OCI index with `linux/amd64` and
+Multi-arch — **what `0.1.2` is published as**: an OCI index with `linux/amd64` and
 `linux/arm64`, so `docker pull` picks the right one (a Raspberry Pi works):
 
 ```sh
@@ -255,7 +255,7 @@ GHCR by hand, if you want it before a tag:
 
 ```sh
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u freekngdom --password-stdin
-docker tag netguard:0.1.1 ghcr.io/freekngdom/netguard:0.1.1 && docker push ghcr.io/freekngdom/netguard:0.1.1
+docker tag netguard:0.1.2 ghcr.io/freekngdom/netguard:0.1.2 && docker push ghcr.io/freekngdom/netguard:0.1.2
 ```
 
 ### Mirroring

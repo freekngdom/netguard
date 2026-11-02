@@ -30,7 +30,7 @@ editor for the one file that defines the policy.
 | | |
 |---|---|
 | source | <https://git.3773512.xyz/TammyTran/netguard> — this repo; tags `v0.1.x` are releases |
-| mirror | `github.com/freekngdom/netguard`, push-mirrored from the source repo on every commit |
+| mirror | `github.com/freekngdom/netguard` — push-mirror target, mirrored on every commit once its deploy key is registered there (see [Mirroring](#mirroring)) |
 | UI image | `hippocampus/netguard` (Docker Hub) and `ghcr.io/freekngdom/netguard` |
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
 | version | `0.1.1` (both images share `status.json` schema v1 and the config grammar) |

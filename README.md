@@ -35,12 +35,15 @@ editor for the one file that defines the policy.
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
 | version | `0.1.3` (both images share `status.json` schema v1 and the config grammar) |
 
-All four images are multi-arch (`linux/amd64` + `linux/arm64`). GHCR is published by
-`.github/workflows/ci.yml` on a `v*` tag using `GITHUB_TOKEN`; Docker Hub by the same
-workflow when `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` are set, or by `make push`.
-**GHCR packages start private even from a public repo**, so `docker pull
-ghcr.io/freekngdom/netguard` needs a login until each package is switched to public in
-its package settings.
+All four images are multi-arch (`linux/amd64` + `linux/arm64`) and pull anonymously
+from either registry. One `v*` tag publishes both from GitHub CI: GHCR with
+`GITHUB_TOKEN` (no secret), Docker Hub with the `DOCKERHUB_USERNAME` /
+`DOCKERHUB_TOKEN` repository secrets — a repo without those still publishes GHCR and
+skips the Docker Hub steps. (`make push` does the same from a workstation.)
+
+One gotcha for a fork: **a GHCR package starts private even when the repo is public**,
+so the first publish needs a one-time visibility change in the package settings before
+an anonymous `docker pull` works.
 
 ---
 

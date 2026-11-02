@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -16,55 +20,94 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
-      - name: shell syntax
+      - name: guard script syntax
         run: sh -n guard/docker-net-guard.sh
 
-  images:
+  build:
+    # Every push: prove both Dockerfiles build. No push to a registry.
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: build (no push on a branch)
+      - uses: docker/build-push-action@v6
+        with: { context: ./ui, push: false, tags: "netguard:sha" }
+      - uses: docker/build-push-action@v6
+        with: { context: ./guard, push: false, tags: "netguard-guard:sha" }
+
+  publish:
+    # A v* tag is a release. GHCR needs no secret (GITHUB_TOKEN); Docker Hub is pushed
+    # only when DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are set — and note the `if:` below
+    # is on the STEP, not the job: `secrets.*` is not readable in a job-level `if:`.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write          # ghcr.io
+    env:
+      # Job-level so `if: env.DOCKERHUB_TOKEN != ''` can see it; a step's own `env:`
+      # block is applied after its `if:` is evaluated.
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: push UI to ghcr
         uses: docker/build-push-action@v6
         with:
           context: ./ui
-          push: false
-          tags: netguard:${{ github.sha }}
-      - name: build guard (no push on a branch)
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/netguard:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/netguard:latest
+
+      - name: push guard to ghcr
         uses: docker/build-push-action@v6
         with:
           context: ./guard
-          push: false
-          tags: netguard-guard:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/netguard-guard:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/netguard-guard:latest
 
-  publish:
-    if: startsWith(github.ref, 'refs/tags/v') && secrets.DOCKERHUB_USERNAME != ''
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: login to docker hub
+        if: env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: push UI
+
+      - name: push UI to docker hub
+        if: env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v6
         with:
           context: ./ui
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/netguard:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/netguard:${{ steps.tag.outputs.version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/netguard:latest
-      - name: push guard
+
+      - name: push guard to docker hub
+        if: env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v6
         with:
           context: ./guard
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/netguard-guard:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/netguard-guard:${{ steps.tag.outputs.version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/netguard-guard:latest

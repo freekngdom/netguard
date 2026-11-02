@@ -44,8 +44,9 @@ services:
       SP_WATCHDOGINTERVAL: 0
 
   netguard-guard:
-    # Published image. `make build` produces the same tag locally, and compose prefers
-    # a local image over pulling — so contributors build once and this line is unchanged.
+    # Published image (also ghcr.io/freekngdom/netguard-guard). `make build` produces
+    # the same tag locally and compose prefers a local image over pulling, so
+    # contributors build once and this line never changes.
     image: hippocampus/netguard-guard:0.1.1
     # build: ./guard                                 # development
     container_name: netguard-guard

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3 — 2026-11-02
+
+Release plumbing again; the images are byte-for-byte the same code as 0.1.2.
+
+- **Docker Hub is now published from GitHub CI as well as GHCR** — with
+  `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` as repository secrets, a `v*` tag pushes
+  both registries in one run. A repo with neither secret still works: the three Docker
+  Hub steps are skipped and only GHCR is published.
+- the Docker Hub steps now require **both** secrets — gating on the token alone would
+  attempt a login with an empty username.
+- `build` (the Dockerfile smoke build) runs on tags and PRs only: on a private repo it
+  was billing two image builds per mirrored commit, which `publish` repeats anyway.
+
 ## 0.1.2 — 2026-11-02
 
 Release plumbing, no behaviour change: the images are the same code as 0.1.1.

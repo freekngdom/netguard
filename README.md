@@ -33,7 +33,7 @@ editor for the one file that defines the policy.
 | mirror | <https://github.com/freekngdom/netguard> — pushed from here on every commit |
 | UI image | `hippocampus/netguard` (Docker Hub) and `ghcr.io/freekngdom/netguard` |
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
-| version | `0.1.3` (both images share `status.json` schema v1 and the config grammar) |
+| version | `0.1.4` (both images share `status.json` schema v1 and the config grammar) |
 
 All four images are multi-arch (`linux/amd64` + `linux/arm64`) and pull anonymously
 from either registry. One `v*` tag publishes both from GitHub CI: GHCR with
@@ -69,7 +69,7 @@ network `netguard.bus=true` instead).
 DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
 ```
 
-This pulls `hippocampus/netguard:0.1.3` and `hippocampus/netguard-guard:0.1.3`. To run
+This pulls `hippocampus/netguard:0.1.4` and `hippocampus/netguard-guard:0.1.4`. To run
 your own build instead, `make build` (same tags, so the compose file needs no edit) and
 uncomment the `build:` lines.
 
@@ -227,7 +227,7 @@ global, and the plain `netguard` namespace is not ours:
 ```sh
 docker login                       # hippo campus account + an access token, not a password
 make build                         # or: make build OWNER=somebodyelse
-make push                          # tags and pushes :0.1.3 and :latest for both
+make push                          # tags and pushes :0.1.4 and :latest for both
 ```
 
 If `./guard` fails to build with `apk … temporary error (try again later)`, the build
@@ -239,12 +239,12 @@ The first `push` creates the repositories (Docker Hub defaults to public). Then 
 
 ```yaml
   netguard-guard:
-    image: hippocampus/netguard-guard:0.1.3
+    image: hippocampus/netguard-guard:0.1.4
   netguard:
-    image: hippocampus/netguard:0.1.3
+    image: hippocampus/netguard:0.1.4
 ```
 
-Multi-arch — **what `0.1.3` is published as**: an OCI index with `linux/amd64` and
+Multi-arch — **what `0.1.4` is published as**: an OCI index with `linux/amd64` and
 `linux/arm64`, so `docker pull` picks the right one (a Raspberry Pi works):
 
 ```sh
@@ -259,7 +259,7 @@ GHCR by hand, if you want it before a tag:
 
 ```sh
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u freekngdom --password-stdin
-docker tag netguard:0.1.3 ghcr.io/freekngdom/netguard:0.1.3 && docker push ghcr.io/freekngdom/netguard:0.1.3
+docker tag netguard:0.1.4 ghcr.io/freekngdom/netguard:0.1.4 && docker push ghcr.io/freekngdom/netguard:0.1.4
 ```
 
 ### Mirroring
@@ -312,6 +312,7 @@ with an access token). A one-paragraph blurb that fits both:
 | edits do not apply | the guard reloads within one poll; a syntax error is refused and the old policy kept — see the guard's logs |
 | `observed.ok: false` | the guard cannot read the kernel log (no `SYSLOG`, or no `dmesg` in the image) |
 | rules seem to do nothing | `br_netfilter` is not loaded, or `bridge-nf-call-iptables=0` |
+| **same-bridge** traffic is dropped (`dial tcp …:5432: connection timed out` between two containers on one compose network) | a **stale** `DOCKERNET_XBRIDGE` left over from before a full `docker compose down`/`up`. The chain is deliberately never flushed (a stopped guard fails closed), and after a `down`/`up` every network returns on the same subnet with a **new** `br-<id>`, so the interface-based DROP was matching a bridge that no longer exists. Fixed in 0.1.4 by a same-subnet RETURN ahead of that DROP — a pre-0.1.4 chain still has this, so clear it once: `docker exec socket-net-guard iptables -t raw -D PREROUTING -j DOCKERNET_XBRIDGE; iptables -t raw -F DOCKERNET_XBRIDGE; iptables -t raw -X DOCKERNET_XBRIDGE` (with the guard **down**, or just restart it so it rebuilds) |
 | `make build` fails in `./guard` with `apk add … temporary error (try again later)` and `no such package` | the **build container** has no DNS. It is not a problem with the packages: a host whose resolver lives inside a VPN namespace (WireGuard/NetBird/Tailscale) only answers from the host netns, and a default-bridge build container cannot reach it. Build with `make build NETWORK=host` (or `docker build --network host …`). Permanently: add `"dns": ["1.1.1.1"]` to `/etc/docker/daemon.json` and restart dockerd |
 | flows missing from the observe table | an *established* flow rides the conntrack RETURN and is never logged; the LOG rules have no `--limit`, so a missing allowlist entry wraps the buffer quickly |
 
@@ -326,10 +327,12 @@ with an access token). A one-paragraph blurb that fits both:
 python3 -m pytest -q            # or: docker compose run --rm ... (no image for tests)
 ```
 
-50 tests: config parse/render (comments survive, idempotent), validation and the write
+55 tests: config parse/render (comments survive, idempotent), validation and the write
 path (backups, atomic replace, stale-page refusal, mode/delete/allow-flow), the HTTP
 surface (including CSRF and content-type refusals), and the guard itself run against
-**fake** iptables/ip/docker/dmesg — policy refusal, chain clearing on reload, and the
+**fake** iptables/ip/docker/dmesg — policy refusal, chain clearing on reload, the
+cross-bridge rule **order** (the same-subnet RETURN must precede the interface DROP,
+which is what keeps a stale bridge name from cutting a network off), and the
 ring-buffer parser, including the truncation quirk below.
 
 The parser detail worth knowing if you touch it: iptables truncates `--log-prefix` to

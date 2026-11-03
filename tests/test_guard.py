@@ -110,8 +110,51 @@ def test_boot_programs_policies_and_publishes_status(tmp_path):
     # (a `^br-` match alone left that whole /16 reachable from every other bridge).
     assert data["xbridge"]["hooked"] is True
     assert data["xbridge"]["bridges"] == 3
-    assert data["xbridge"]["rules"] == 2 * 3 + 1
+    assert data["xbridge"]["rules"] == 3 * 3 + 1
     assert "DOCKERNET_edge" in data["docker_user"] and "DOCKERNET_backend" in data["docker_user"]
+
+
+def test_same_subnet_return_precedes_the_interface_drop(tmp_path):
+    """The regression guard for the 2026-11-03 outage.
+
+    Rule 2 ("-d <subnet> ! -i <bridge> -j DROP") is the only cross-bridge rule
+    that names an interface, and a bridge name does not survive a recreate: after
+    a full down/up every network returns on the same subnet with a new br-<id>.
+    With the guard down, nothing re-derives the rules, so that stale interface
+    name dropped same-bridge traffic -- forgejo could not reach its own database
+    and its ORM gave up with "connection timed out".
+
+    A same-subnet RETURN ahead of the DROP makes that harmles: it needs no
+    interface. Ordering is the whole fix, so assert the order, not just presence.
+    """
+    root = sandbox(tmp_path)
+    result = boot(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    lines = [
+        ln for ln in (root / "fakestate" / "chains").read_text(encoding="utf-8").splitlines()
+        if ln.startswith("rule:DOCKERNET_XBRIDGE|")
+    ]
+
+    def index(needle):
+        for i, ln in enumerate(lines):
+            if needle in ln:
+                return i
+        raise AssertionError("%r missing from %r" % (needle, lines))
+
+    # Every docker subnet: the RETURN must come first, the interface DROP after it.
+    # Specs carry the bridge's host address (10.10.10.1/24) -- iptables masks it
+    # back to the network, the recorded rule does not.
+    for cidr in ("10.10.10.1/24", "10.10.20.1/24", "172.17.0.1/16"):
+        ret = index("-s %s -d %s" % (cidr, cidr))
+        drop = index("-d %s ! -i" % cidr)
+        assert ret < drop, "same-subnet RETURN for %s must precede its DROP" % cidr
+
+    # the RETURN must be a RETURN: a same-subnet DROP would cut every bridge off
+    ret_line = [ln for ln in lines if "-s 10.10.10.1/24 -d 10.10.10.1/24" in ln][0]
+    assert "-j RETURN" in ret_line
+    # and it must not name an interface -- that is what goes stale
+    assert "-i " not in ret_line.split("-j")[0]
 
 
 def test_observed_flows_are_parsed_from_the_ring_buffer(tmp_path):

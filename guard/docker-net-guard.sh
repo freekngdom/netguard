@@ -435,6 +435,25 @@ build_xbridge() {
     "$IPT" -t raw -A "$XBRIDGE_CHAIN" -d "${cidr%%/*}/32" \
       -m comment --comment "$XBRIDGE_TAG" -j RETURN
   done
+  # 1b. Same-subnet traffic is same-bridge by definition, so RETURN it before the
+  #     interface-based DROP below. This is what makes a STALE chain harmless:
+  #     rule 2 is the only part that names an interface, and a bridge name is
+  #     not stable across a recreate. After a full `down`/`up` every network
+  #     comes back with a new br-<id> on the SAME subnet, so rule 2 read
+  #     "-d 10.30.0.0/16 ! -i br-51b0e0d7f262" against a live br-3996878598eb
+  #     and dropped every same-bridge packet -- forgejo could not reach its own
+  #     database (2026-11-03, while the guard was down so nothing re-derived the
+  #     rules). Matching src AND dst inside one docker subnet needs no interface
+  #     at all: docker gives one subnet per bridge, so same-subnet == same-bridge
+  #     == allowed, exactly what rule 2 allowed when its interface was alive.
+  #     Cross-subnet traffic still falls through to rule 2's DROP whether or not
+  #     the interface name it carries is still valid.
+  #     Assumes what rule 1 already assumes: no two docker networks share a
+  #     subnet, and no host/LAN range overlaps one.
+  printf '%s\n' "$specs" | while read -r iface cidr; do
+    "$IPT" -t raw -A "$XBRIDGE_CHAIN" -s "$cidr" -d "$cidr" \
+      -m comment --comment "$XBRIDGE_TAG" -j RETURN
+  done
   # 2. A docker subnet is reachable only from its own bridge. iptables masks the
   #    host address back to the network (10.70.1.1/24 -> 10.70.1.0/24).
   printf '%s\n' "$specs" | while read -r iface cidr; do
@@ -455,7 +474,7 @@ build_xbridge() {
   # Count LINES, not `br-` matches: docker0/docker_gwbridge are bridges too and
   # their names do not start with br- (see xbridge_specs).
   bridges=$(printf '%s\n' "$specs" | grep -c . || true)
-  log "cross-bridge: ENFORCE $bridges bridges -> $((bridges * 2 + 1)) rules"
+  log "cross-bridge: ENFORCE $bridges bridges -> $((bridges * 3 + 1)) rules"
 }
 
 # Body for the cross-bridge check inside watch(). Sets $xb_restart=1 to rebuild.

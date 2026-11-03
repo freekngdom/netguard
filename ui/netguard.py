@@ -65,7 +65,7 @@ import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 # ─── configuration ────────────────────────────────────────────────────────────
 DOCKER_HOST = os.environ.get("DOCKER_HOST", "tcp://docker-socket-proxy:2375")

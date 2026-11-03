@@ -157,6 +157,29 @@ def test_same_subnet_return_precedes_the_interface_drop(tmp_path):
     assert "-i " not in ret_line.split("-j")[0]
 
 
+def test_a_poll_does_not_rebuild_an_undrifted_chain(tmp_path):
+    """A clean boot must not be followed by a rebuild every poll.
+
+    0.1.4 changed the rule shape to 3n+1 but left verify_xbridge comparing against
+    2n+1, so every poll logged "rule count 145 != 97" and flushed/rebuilt the chain
+    -- a per-minute window on the host's cross-bridge isolation, for no reason.
+    The check now reads the same xbridge_rule_count() build_xbridge logs from.
+    """
+    root = sandbox(tmp_path)
+    boot(root)
+    driver = """\
+. ./guard.sh >/dev/null 2>&1
+xb_restart=0
+verify_xbridge
+echo xb_restart=$xb_restart
+echo "expected=$(xbridge_rule_count 3)"
+"""
+    out = shell(root, driver)
+    assert "xb_restart=0" in out.stdout, out.stdout + out.stderr
+    assert "expected=10" in out.stdout
+    assert "rebuilding" not in out.stdout
+
+
 def test_observed_flows_are_parsed_from_the_ring_buffer(tmp_path):
     root = sandbox(tmp_path)
     boot(root)

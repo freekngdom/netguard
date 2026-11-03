@@ -33,7 +33,7 @@ editor for the one file that defines the policy.
 | mirror | <https://github.com/freekngdom/netguard> — pushed from here on every commit |
 | UI image | `hippocampus/netguard` (Docker Hub) and `ghcr.io/freekngdom/netguard` |
 | guard image | `hippocampus/netguard-guard` (Docker Hub) and `ghcr.io/freekngdom/netguard-guard` |
-| version | `0.1.4` (both images share `status.json` schema v1 and the config grammar) |
+| version | `0.1.5` (both images share `status.json` schema v1 and the config grammar) |
 
 All four images are multi-arch (`linux/amd64` + `linux/arm64`) and pull anonymously
 from either registry. One `v*` tag publishes both from GitHub CI: GHCR with
@@ -69,7 +69,7 @@ network `netguard.bus=true` instead).
 DOCKER_GID=$(stat -c %g /var/run/docker.sock) docker compose up -d
 ```
 
-This pulls `hippocampus/netguard:0.1.4` and `hippocampus/netguard-guard:0.1.4`. To run
+This pulls `hippocampus/netguard:0.1.5` and `hippocampus/netguard-guard:0.1.5`. To run
 your own build instead, `make build` (same tags, so the compose file needs no edit) and
 uncomment the `build:` lines.
 
@@ -227,7 +227,7 @@ global, and the plain `netguard` namespace is not ours:
 ```sh
 docker login                       # hippo campus account + an access token, not a password
 make build                         # or: make build OWNER=somebodyelse
-make push                          # tags and pushes :0.1.4 and :latest for both
+make push                          # tags and pushes :0.1.5 and :latest for both
 ```
 
 If `./guard` fails to build with `apk … temporary error (try again later)`, the build
@@ -239,12 +239,12 @@ The first `push` creates the repositories (Docker Hub defaults to public). Then 
 
 ```yaml
   netguard-guard:
-    image: hippocampus/netguard-guard:0.1.4
+    image: hippocampus/netguard-guard:0.1.5
   netguard:
-    image: hippocampus/netguard:0.1.4
+    image: hippocampus/netguard:0.1.5
 ```
 
-Multi-arch — **what `0.1.4` is published as**: an OCI index with `linux/amd64` and
+Multi-arch — **what `0.1.5` is published as**: an OCI index with `linux/amd64` and
 `linux/arm64`, so `docker pull` picks the right one (a Raspberry Pi works):
 
 ```sh
@@ -259,7 +259,7 @@ GHCR by hand, if you want it before a tag:
 
 ```sh
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u freekngdom --password-stdin
-docker tag netguard:0.1.4 ghcr.io/freekngdom/netguard:0.1.4 && docker push ghcr.io/freekngdom/netguard:0.1.4
+docker tag netguard:0.1.5 ghcr.io/freekngdom/netguard:0.1.5 && docker push ghcr.io/freekngdom/netguard:0.1.5
 ```
 
 ### Mirroring
@@ -327,7 +327,7 @@ with an access token). A one-paragraph blurb that fits both:
 python3 -m pytest -q            # or: docker compose run --rm ... (no image for tests)
 ```
 
-55 tests: config parse/render (comments survive, idempotent), validation and the write
+56 tests: config parse/render (comments survive, idempotent), validation and the write
 path (backups, atomic replace, stale-page refusal, mode/delete/allow-flow), the HTTP
 surface (including CSRF and content-type refusals), and the guard itself run against
 **fake** iptables/ip/docker/dmesg — policy refusal, chain clearing on reload, the

@@ -403,6 +403,16 @@ XBRIDGE_STATE=/tmp/.docker-net-guard-xbridge.spec
 # it (`-d 172.17.0.2/32 ! -i docker0`) because it enumerated containers instead.
 # A macvlan/ipvlan network has no bridge interface and is still not covered,
 # exactly as trafficjam's per-container rules did not cover them either.
+# ONE definition of the expected rule count, used by BOTH build_xbridge's log line
+# and verify_xbridge's structure check. 0.1.4 shipped with only the log updated, so
+# every poll saw "rule count 145 != 97" and rebuilt the chain from scratch forever
+# (2026-11-03) — a per-minute flush/rebuild and a log line a minute. Keep them tied
+# together: gateway RETURNs (n) + same-subnet RETURNs (n) + interface DROPs (n) + the
+# loopback DROP.
+xbridge_rule_count() {
+  echo $(($1 * 3 + 1))
+}
+
 xbridge_specs() {
   [ -n "$IPBIN" ] || return 0
   "$IPBIN" -o -4 addr show 2>/dev/null | awk '
@@ -474,7 +484,7 @@ build_xbridge() {
   # Count LINES, not `br-` matches: docker0/docker_gwbridge are bridges too and
   # their names do not start with br- (see xbridge_specs).
   bridges=$(printf '%s\n' "$specs" | grep -c . || true)
-  log "cross-bridge: ENFORCE $bridges bridges -> $((bridges * 3 + 1)) rules"
+  log "cross-bridge: ENFORCE $bridges bridges -> $(xbridge_rule_count "$bridges") rules"
 }
 
 # Body for the cross-bridge check inside watch(). Sets $xb_restart=1 to rebuild.
@@ -500,9 +510,10 @@ verify_xbridge() {
   # Structure check: losing the DROP (or a gateway RETURN) leaves the host open
   # while the chain still looks present, so count the tagged rules.
   bridges=$(printf '%s\n' "$want" | grep -c . || true)
+  want_rules=$(xbridge_rule_count "$bridges")
   got=$("$IPT" -t raw -S "$XBRIDGE_CHAIN" 2>/dev/null | grep -cF -- "$XBRIDGE_TAG" || true)
-  if [ "$got" != "$((bridges * 2 + 1))" ]; then
-    log "cross-bridge: rule count $got != $((bridges * 2 + 1)) — rebuilding"
+  if [ "$got" != "$want_rules" ]; then
+    log "cross-bridge: rule count $got != $want_rules — rebuilding"
     xb_restart=1
   fi
 }
